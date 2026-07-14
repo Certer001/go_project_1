@@ -37,6 +37,15 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Раздаём фронтенд из корня проекта (запускай: go run ./cmd/api из корня)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, "index.html")
+	})
+
 	// 1. Оставляем роут для создания задачи
 	mux.HandleFunc("/tasks/create", methodHandlear(handler.CreateTask, "POST"))
 
@@ -44,7 +53,7 @@ func main() {
 	// Он больше не конфликтует, так как зарегистрирован всего ОДИН раз
 	mux.HandleFunc("/tasks/", taskIdHandler(handler))
 
-	loggedMux := loggingMiddleware(mux)
+	loggedMux := loggingMiddleware(corsMiddleware(mux))
 
 	serverAddr := ":" + serverPort
 
@@ -94,6 +103,20 @@ func taskIdHandler(handler *handlers.Handlers) http.HandlerFunc {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// corsMiddleware позволяет открывать index.html отдельно от API (Live Server / file://)
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

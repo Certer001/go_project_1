@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tasks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: "#0c0c0c",
+            panel: "#141414",
+            line: "#262626",
+            soft: "#a1a1a1",
+            ink: "#f5f5f5",
+            accent: "#3d8bfd",
+            accentDim: "#1a3a6b",
+            danger: "#f07178",
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+          },
+          boxShadow: {
+            glow: "0 0 0 1px rgba(61, 139, 253, 0.25), 0 8px 32px rgba(0, 0, 0, 0.45)",
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    html { color-scheme: dark; }
+    body {
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 139, 253, 0.12), transparent),
+        #0c0c0c;
+    }
+    .task-row {
+      transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+    }
+    .task-row:hover { background-color: rgba(255, 255, 255, 0.03); }
+    .check {
+      appearance: none;
+      width: 1.125rem;
+      height: 1.125rem;
+      border: 1.5px solid #525252;
+      border-radius: 0.35rem;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .check:hover { border-color: #3d8bfd; }
+    .check:checked {
+      background: #3d8bfd;
+      border-color: #3d8bfd;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3.5 8.5L6.5 11.5L12.5 4.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-size: 12px;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    .fade-in { animation: fadeIn 0.25s ease both; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #toast {
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #toast.hidden-toast {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans text-ink antialiased">
+  <div class="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-16">
+    <header class="mb-10">
+      <p class="mb-2 text-xs font-medium uppercase tracking-[0.2em] text-soft">Workspace</p>
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Tasks</h1>
+          <p class="mt-2 text-sm text-soft">Создавайте, отмечайте и удаляйте задачи</p>
+        </div>
+        <div id="stats" class="hidden text-right text-xs text-soft sm:block">
+          <span id="stat-open">0</span> активных · <span id="stat-done">0</span> готово
+        </div>
+      </div>
+    </header>
+
+    <!-- Create form -->
+    <section class="mb-8 rounded-xl border border-line bg-panel p-4 shadow-glow sm:p-5">
+      <form id="create-form" class="space-y-3">
+        <div>
+          <label for="title" class="mb-1.5 block text-xs font-medium text-soft">Заголовок</label>
+          <input
+            id="title"
+            name="title"
+            type="text"
+            required
+            maxlength="200"
+            placeholder="Например: Написать README"
+            class="w-full rounded-lg border border-line bg-canvas px-3.5 py-2.5 text-sm text-ink placeholder:text-neutral-600 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
+          />
+        </div>
+        <div>
+          <label for="description" class="mb-1.5 block text-xs font-medium text-soft">Описание</label>
+          <textarea
+            id="description"
+            name="description"
+            rows="2"
+            maxlength="1000"
+            placeholder="Необязательно"
+            class="w-full resize-none rounded-lg border border-line bg-canvas px-3.5 py-2.5 text-sm text-ink placeholder:text-neutral-600 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
+          ></textarea>
+        </div>
+        <div class="flex items-center justify-between gap-3 pt-1">
+          <p id="form-hint" class="text-xs text-soft">POST /tasks/create</p>
+          <button
+            type="submit"
+            id="create-btn"
+            class="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Добавить
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Filters -->
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <div class="flex gap-1 rounded-lg border border-line bg-panel p-1 text-xs">
+        <button type="button" data-filter="all" class="filter-btn rounded-md px-3 py-1.5 font-medium transition bg-line text-ink">Все</button>
+        <button type="button" data-filter="active" class="filter-btn rounded-md px-3 py-1.5 font-medium text-soft transition hover:text-ink">Активные</button>
+        <button type="button" data-filter="done" class="filter-btn rounded-md px-3 py-1.5 font-medium text-soft transition hover:text-ink">Готовые</button>
+      </div>
+      <button
+        type="button"
+        id="refresh-btn"
+        class="rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-medium text-soft transition hover:border-neutral-500 hover:text-ink"
+        title="Обновить список"
+      >
+        Обновить
+      </button>
+    </div>
+
+    <!-- List -->
+    <section>
+      <div id="loading" class="rounded-xl border border-line bg-panel px-5 py-12 text-center text-sm text-soft">
+        Загрузка задач…
+      </div>
+      <div id="empty" class="hidden rounded-xl border border-dashed border-line bg-panel/50 px-5 py-14 text-center">
+        <p class="text-sm font-medium text-ink">Пока пусто</p>
+        <p class="mt-1 text-xs text-soft">Создайте первую задачу выше</p>
+      </div>
+      <ul id="task-list" class="hidden space-y-2"></ul>
+    </section>
+  </div>
+
+  <!-- Toast -->
+  <div
+    id="toast"
+    class="hidden-toast fixed bottom-6 left-1/2 z-50 max-w-sm -translate-x-1/2 rounded-lg border border-line bg-panel px-4 py-3 text-sm shadow-glow"
+    role="status"
+  ></div>
+
+  <script>
+    const API_BASE = window.location.protocol === "file:"
+      ? "http://localhost:8080"
+      : "";
+
+    const state = {
+      tasks: [],
+      filter: "all",
+      loading: false,
+    };
+
+    const els = {
+      list: document.getElementById("task-list"),
+      loading: document.getElementById("loading"),
+      empty: document.getElementById("empty"),
+      form: document.getElementById("create-form"),
+      title: document.getElementById("title"),
+      description: document.getElementById("description"),
+      createBtn: document.getElementById("create-btn"),
+      toast: document.getElementById("toast"),
+      stats: document.getElementById("stats"),
+      statOpen: document.getElementById("stat-open"),
+      statDone: document.getElementById("stat-done"),
+      refresh: document.getElementById("refresh-btn"),
+    };
+
+    let toastTimer = null;
+
+    function showToast(message, isError = false) {
+      els.toast.textContent = message;
+      els.toast.classList.toggle("border-danger/40", isError);
+      els.toast.classList.toggle("text-danger", isError);
+      els.toast.classList.toggle("text-ink", !isError);
+      els.toast.classList.remove("hidden-toast");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => els.toast.classList.add("hidden-toast"), 3200);
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        ...options,
+      });
+
+      let data = null;
+      const text = await res.text();
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Сервер вернул не JSON");
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error((data && data.error) || `Ошибка ${res.status}`);
+      }
+      return data;
+    }
+
+    function filteredTasks() {
+      if (state.filter === "active") return state.tasks.filter((t) => !t.completed);
+      if (state.filter === "done") return state.tasks.filter((t) => t.completed);
+      return state.tasks;
+    }
+
+    function updateStats() {
+      const open = state.tasks.filter((t) => !t.completed).length;
+      const done = state.tasks.filter((t) => t.completed).length;
+      els.statOpen.textContent = open;
+      els.statDone.textContent = done;
+      els.stats.classList.toggle("hidden", state.tasks.length === 0);
+      els.stats.classList.toggle("sm:block", state.tasks.length > 0);
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "";
+      try {
+        return new Intl.DateTimeFormat("ru-RU", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(iso));
+      } catch {
+        return "";
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function render() {
+      const tasks = filteredTasks();
+      updateStats();
+
+      els.loading.classList.add("hidden");
+
+      if (!tasks.length) {
+        els.list.classList.add("hidden");
+        els.list.innerHTML = "";
+        els.empty.classList.remove("hidden");
+        const msg = state.tasks.length
+          ? "В этом фильтре ничего нет"
+          : "Пока пусто";
+        els.empty.querySelector("p").textContent = msg;
+        return;
+      }
+
+      els.empty.classList.add("hidden");
+      els.list.classList.remove("hidden");
+      els.list.innerHTML = tasks
+        .map(
+          (task) => `
+        <li class="task-row fade-in group flex items-start gap-3 rounded-xl border border-line bg-panel px-4 py-3.5" data-id="${task.id}">
+          <input
+            type="checkbox"
+            class="check mt-0.5"
+            ${task.completed ? "checked" : ""}
+            aria-label="Отметить выполненной"
+            data-action="toggle"
+          />
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium leading-snug ${task.completed ? "text-soft line-through" : "text-ink"}">${escapeHtml(task.title)}</p>
+            ${
+              task.description
+                ? `<p class="mt-1 text-xs leading-relaxed text-soft ${task.completed ? "opacity-60" : ""}">${escapeHtml(task.description)}</p>`
+                : ""
+            }
+            <p class="mt-2 text-[11px] text-neutral-600">${formatDate(task.created_at)}</p>
+          </div>
+          <button
+            type="button"
+            data-action="delete"
+            class="shrink-0 rounded-md px-2 py-1 text-xs text-soft opacity-0 transition hover:bg-red-500/10 hover:text-danger group-hover:opacity-100 focus:opacity-100"
+            title="Удалить"
+          >
+            Удалить
+          </button>
+        </li>`
+        )
+        .join("");
+    }
+
+    async function loadTasks() {
+      state.loading = true;
+      els.loading.classList.remove("hidden");
+      els.empty.classList.add("hidden");
+      els.list.classList.add("hidden");
+
+      try {
+        const data = await api("/tasks/");
+        state.tasks = Array.isArray(data) ? data : [];
+        render();
+      } catch (err) {
+        els.loading.classList.add("hidden");
+        els.empty.classList.remove("hidden");
+        els.empty.querySelector("p").textContent = "Не удалось загрузить задачи";
+        showToast(err.message, true);
+      } finally {
+        state.loading = false;
+      }
+    }
+
+    async function createTask(e) {
+      e.preventDefault();
+      const title = els.title.value.trim();
+      const description = els.description.value.trim();
+      if (!title) return;
+
+      els.createBtn.disabled = true;
+      try {
+        const task = await api("/tasks/create", {
+          method: "POST",
+          body: JSON.stringify({ title, description, completed: false }),
+        });
+        state.tasks.unshift(task);
+        els.form.reset();
+        els.title.focus();
+        render();
+        showToast("Задача создана");
+      } catch (err) {
+        showToast(err.message, true);
+      } finally {
+        els.createBtn.disabled = false;
+      }
+    }
+
+    async function toggleTask(id, completed) {
+      const task = state.tasks.find((t) => t.id === id);
+      if (!task) return;
+
+      const prev = task.completed;
+      task.completed = completed;
+      render();
+
+      try {
+        const updated = await api(`/tasks/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ completed }),
+        });
+        Object.assign(task, updated);
+        render();
+      } catch (err) {
+        task.completed = prev;
+        render();
+        showToast(err.message, true);
+      }
+    }
+
+    async function deleteTask(id) {
+      const idx = state.tasks.findIndex((t) => t.id === id);
+      if (idx === -1) return;
+      const [removed] = state.tasks.splice(idx, 1);
+      render();
+
+      try {
+        await api(`/tasks/${id}`, { method: "DELETE" });
+        showToast("Задача удалена");
+      } catch (err) {
+        state.tasks.splice(idx, 0, removed);
+        render();
+        showToast(err.message, true);
+      }
+    }
+
+    els.form.addEventListener("submit", createTask);
+    els.refresh.addEventListener("click", loadTasks);
+
+    els.list.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action='delete']");
+      if (!btn) return;
+      const li = btn.closest("[data-id]");
+      const id = Number(li.dataset.id);
+      deleteTask(id);
+    });
+
+    els.list.addEventListener("change", (e) => {
+      if (e.target.dataset.action !== "toggle") return;
+      const li = e.target.closest("[data-id]");
+      const id = Number(li.dataset.id);
+      toggleTask(id, e.target.checked);
+    });
+
+    document.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.filter = btn.dataset.filter;
+        document.querySelectorAll(".filter-btn").forEach((b) => {
+          const active = b.dataset.filter === state.filter;
+          b.classList.toggle("bg-line", active);
+          b.classList.toggle("text-ink", active);
+          b.classList.toggle("text-soft", !active);
+        });
+        render();
+      });
+    });
+
+    loadTasks();
+  </script>
+</body>
+</html>
