@@ -21,9 +21,9 @@ func (s *TaskStor) GetAll() ([]models.Task, error) {
 	var tasks []models.Task
 
 	query := `
-	SELECT id, title, description, completed , created_at, updated_at 
-	FROM tasks 
-	order_by created_at desk;`
+ SELECT id, title, description, completed, created_at, updated_at 
+ FROM tasks 
+ ORDER BY created_at DESC;` // Исправили ORDER BY и DESC
 
 	err := s.db.Select(&tasks, query)
 	if err != nil {
@@ -37,14 +37,14 @@ func (s *TaskStor) GetByID(id int) (*models.Task, error) {
 	var task models.Task
 
 	query := `
-	SELECT id, title, description, completed , created_at, updated_at 
-	FROM tasks 
-	WHERE ID = $1`
+ SELECT id, title, description, completed, created_at, updated_at 
+ FROM tasks 
+ WHERE id = $1;`
 
 	err := s.db.Get(&task, query, id)
 
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf(`task with id %d not found`, id)
+		return nil, fmt.Errorf("task with id %d not found", id) // Добавили кавычки
 	}
 
 	if err != nil {
@@ -58,9 +58,9 @@ func (s *TaskStor) Create(input models.CreateTaskInput) (*models.Task, error) {
 	var task models.Task
 
 	query := `
-	INSERT INTO tasks (title, description, completed , created_at, updated_at)
-	VALUES ($1, $2, $3, $4, $5);
-	returning id, title, description, completed , created_at, updated_at`
+ INSERT INTO tasks (title, description, completed, created_at, updated_at)
+ VALUES ($1, $2, $3, $4, $5)
+ RETURNING id, title, description, completed, created_at, updated_at;` // Убрали ";" перед RETURNING
 
 	now := time.Now()
 
@@ -93,14 +93,15 @@ func (s *TaskStor) Update(id int, input models.UpdateTaskInput) (*models.Task, e
 	task.UpdatedAt = time.Now()
 
 	query := `
-	UPDATE tasks
-	SET title = $1, description = $2, completed = $3, updated_at = $4
-	WHERE id = $5;
-	returning id, title, description, completed, created_at, updated_at`
+ UPDATE tasks
+ SET title = $1, description = $2, completed = $3, updated_at = $4
+ WHERE id = $5
+ RETURNING id, title, description, completed, created_at, updated_at;` // Убрали ";" и поправили плейсхолдеры
 
 	var updateTask models.Task
 
-	err = s.db.QueryRowx(query, task.Title, task.Description, task.Completed, task.CreatedAt, task.UpdatedAt).StructScan(&updateTask)
+	// Передаем task.ID пятым аргументом под $5
+	err = s.db.QueryRowx(query, task.Title, task.Description, task.Completed, task.UpdatedAt, task.ID).StructScan(&updateTask)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (s *TaskStor) Update(id int, input models.UpdateTaskInput) (*models.Task, e
 }
 
 func (s *TaskStor) Delete(id int) error {
-	query := `DELETE FROM tasks WHERE id = $1`
+	query := "DELETE FROM tasks WHERE id = $1;" // Добавили кавычки
 
 	result, err := s.db.Exec(query, id)
 	if err != nil {
@@ -122,7 +123,7 @@ func (s *TaskStor) Delete(id int) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf(`task with id %d not found`, id)
+		return fmt.Errorf("task with id %d not found", id) // Добавили кавычки
 	}
 
 	return nil
